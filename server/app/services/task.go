@@ -1,15 +1,22 @@
 package services
 
 import (
+	"context"
 	"gorm.io/gorm/clause"
 	"server/app/models"
 	"server/app/types"
 	"server/database"
+	"strconv"
+	"time"
+)
+
+var (
+	defaultExpireTime = 10 * time.Minute
 )
 
 type TaskServiceImpl struct{}
 
-func (TaskServiceImpl) save(req *models.Task) error {
+func (TaskServiceImpl) Save(req *models.Task) error {
 
 	if req.Result != "" {
 		req.Status = types.TaskStatusFinished
@@ -18,7 +25,7 @@ func (TaskServiceImpl) save(req *models.Task) error {
 	return database.GetMySQL().Save(req).Error
 }
 
-func (TaskServiceImpl) list(req *models.TaskReq) (models.TaskListResp, error) {
+func (TaskServiceImpl) List(req *models.TaskReq) (models.TaskListResp, error) {
 
 	var resp models.TaskListResp
 
@@ -42,6 +49,34 @@ func (TaskServiceImpl) list(req *models.TaskReq) (models.TaskListResp, error) {
 	return resp, nil
 }
 
-func (TaskServiceImpl) getTask() (models.TaskResp, error) {
+func (TaskServiceImpl) GetTask() (models.TaskResp, error) {
 
+	var tasks []models.TaskResp
+
+	if err := database.GetMySQL().Model(&models.Task{}).Where("status = ?", types.TaskStatusUnfinished).Limit(100).Find(&tasks).Error; err != nil {
+		return models.TaskResp{}, err
+	}
+
+	for _, task := range tasks {
+
+		taskID := strconv.Itoa(task.ID)
+
+		res, _ := database.GetRedis().Incr(context.Background(), taskID).Result()
+		if res > 1 {
+			continue
+		}
+
+		if _, err := database.GetRedis().Expire(context.Background(), taskID, defaultExpireTime).Result(); err != nil {
+			return models.TaskResp{}, err
+		}
+
+		return task, nil
+	}
+
+	return models.TaskResp{}, nil
+}
+
+func releaseTaskLock(taskID string) error {
+	_, err := database.GetRedis().Del(context.Background(), taskID).Result()
+	return err
 }
