@@ -1,6 +1,6 @@
 app:
-  name: edu-platform
-  port: 3000
+  name: annotation
+  port: 3030
   env: local
 
 mysql:
@@ -8,4 +8,10 @@ mysql:
   port: 3306
   username: root
   password: 123456
-  database: edu-platform
+  database: annotation
+
+redis:
+  host: localhost
+  port: 6379
+  password:
+  db: 0

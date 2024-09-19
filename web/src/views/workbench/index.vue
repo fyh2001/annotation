@@ -1,7 +1,54 @@
 <script setup>
-import { NearMeRound, SquareRound, Brightness1Round } from "@vicons/material";
+import { NearMeRound, SquareRound, Brightness1Round, CoPresentSharp } from "@vicons/material";
 import { ref, onMounted, onUnmounted } from "vue";
-import imageUrl from "../../../public/1.jpg";
+import { getTask, submit } from "../../api/methods/task"
+import { baseURL } from "../../api";
+
+
+const getNewTaskBtnDisable = ref(false)
+
+const getNewTask = async () => {
+    const { data } = await getTask();
+
+    if (data.code !== 200) return
+
+    const task = data.data
+
+    localStorage.setItem("task", JSON.stringify(task))
+    loadImage(baseURL.substring(0, baseURL.length - 3) + task.url)
+    getNewTaskBtnDisable.value = true
+}
+
+const handleSubmit = async (mode) => {
+    if (boxes.value.length === 0) return
+
+    const task = JSON.parse(localStorage.getItem("task"))
+    if (new Date(task.expiredAt) < Date.now()) {
+        reset()
+        if (mode == "exit") { return }
+        else if (mode == "continue") { return getNewTask() }
+    }
+
+    const submitData = boxes.value.map((item) => {
+        return {
+            classification: item.classification,
+            x: (item.x + item.width / 2) / imageWidth.value,
+            y: (item.y + item.height / 2) / imageHeight.value,
+            width: item.width / imageWidth.value,
+            height: item.height / imageHeight.value,
+        }
+    })
+
+    task.result = JSON.stringify(submitData)
+
+    const { data } = await submit(task)
+
+    if (data.code === 200) {
+        reset()
+        if (mode == "exit") { return }
+        else if (mode == "continue") { return getNewTask() }
+    }
+}
 
 // 初始化 Konva 画布配置
 const stageConfig = ref({
@@ -16,6 +63,8 @@ const transformerRef = ref(null);
 
 // 存储图像、标注框和缩放比例
 const image = ref(null); // 存放加载的图像
+const imageWidth = ref(0)
+const imageHeight = ref(0)
 const imageConfig = ref(null);
 
 const boxes = ref([]); // 存放标注框
@@ -26,20 +75,50 @@ const isDrawing = ref(false); // 是否正在绘制矩形框
 const undoStack = ref([]); // 撤销操作栈
 const currentMode = ref("rectTool"); // 当前模式
 
-const currentClassification = ref(1);
+const currentClassification = ref(0);
 const classifications = ref({
-    1: {
-        id: 1,
+    0: {
+        id: 0,
         name: "分类1",
         color: "#FF0000",
     },
 });
 
-const createClassificaton = (code) => { };
+const reset = () => {
+    getNewTaskBtnDisable.value = false
+    transformerRef.value = null;
 
-const switchMode = (mode) => {
-    currentMode.value = mode;
-};
+    stageConfig.value = {
+        width: window.innerWidth * 0.6,
+        height: window.innerHeight * 0.8,
+        scaleX: 1,
+        scaleY: 1,
+    }
+
+    const stage = stageRef.value.getStage();
+    stage.scale({ x: 1, y: 1 }); // 重置缩放比例为 1
+    stage.position({ x: 0, y: 0 }); // 重置位移
+    stage.width(window.innerWidth * 0.6); // 将宽度重置为窗口宽度
+    stage.height(window.innerHeight * 0.8); // 将高度重置为窗口高度
+
+    image.value = null
+    imageConfig.value = {
+        ...imageConfig.value,
+        width: 0,
+        height: 0,
+        img: null
+    }
+
+    boxes.value = []; // 存放标注框
+    scale.value = 1; // 缩放比例
+    selectedRectIndex.value = null; // 当前选中的矩形框索引
+    tempSelectedRectIndex.value = null
+    isDrawing.value = false; // 是否正在绘制矩形框
+    undoStack.value = []; // 撤销操作栈
+    currentMode.value = "rectTool"; // 当前模式
+
+    stage.batchDraw(); // 重新绘制画布
+}
 
 // 计算 selectedRect
 const selectedRect = computed(() => {
@@ -57,29 +136,30 @@ const selectedRect = computed(() => {
 });
 
 // 加载图像函数
-const loadImage = () => {
+const loadImage = (url) => {
     const img = new Image();
-    img.src = imageUrl;
+    img.src = url;
     img.onload = () => {
         image.value = img; // 确保图像完全加载后赋值
         const stage = stageRef.value.getStage(); // 通过 stageRef 获取 Stage 实例
 
         // 获取图片的原始宽高
-        const imgWidth = img.width;
-        const imgHeight = img.height;
+        imageWidth.value = img.width;
+        imageHeight.value = img.height;
 
         // 计算合适的缩放比例，使图片适应窗口大小
         const stageWidth = stage.width();
         const stageHeight = stage.height();
 
         // 保持宽高比缩放图片
-        let scale = Math.min(stageWidth / imgWidth, stageHeight / imgHeight);
+        let scale = Math.min(stageWidth / imageWidth.value, stageHeight / imageHeight.value);
 
+        // 确保图像位置居中
         imageConfig.value = {
-            x: (stageWidth - imgWidth * scale) / 2, // 居中显示
-            y: (stageHeight - imgHeight * scale) / 2, // 居中显示
-            width: imgWidth * scale,
-            height: imgHeight * scale,
+            x: (stageWidth - imageWidth.value * scale) / 2, // 居中显示
+            y: (stageHeight - imageHeight.value * scale) / 2, // 居中显示
+            width: imageWidth.value * scale,
+            height: imageHeight.value * scale,
             image: img, // 将图像绑定到配置中
         };
 
@@ -182,7 +262,6 @@ const handleMouseUp = () => {
 
 // 拖动标注框功能
 const handleDragMove = (index, event) => {
-    console.log(event)
     const box = boxes.value[index];
     box.x = event.target.x();
     box.y = event.target.y();
@@ -202,8 +281,6 @@ const handleRectClick = async (index) => {
 
     const stage = stageRef.value.getStage();
     const rect = stage.find("Rect")[index];
-
-    console.log(transformerRef.value)
 
     await nextTick(); // 确保 DOM 更新完成
 
@@ -243,7 +320,6 @@ const deleteRect = () => {
 
 // 监听键盘事件：快捷键增加和删除标注框
 const handleKeydown = (event) => {
-    console.log(event);
     if (event.key.toLowerCase() === "n" && mode === "selectBox") {
         // 按下 'n' 键新增一个标注框
         boxes.value.push({
@@ -262,7 +338,6 @@ const handleKeydown = (event) => {
         event.key.toLowerCase() === "z"
     ) {
         undo(); // 按下 Ctrl + Z 撤销
-        console.log("ok");
     } else if
         (event.key.toLowerCase() === "a") {
         currentMode.value = "selectBox"
@@ -273,8 +348,14 @@ const handleKeydown = (event) => {
 
 // 在组件挂载时加载图像和绑定键盘事件
 onMounted(() => {
-    loadImage();
     window.addEventListener("keydown", handleKeydown);
+
+    const task = JSON.parse(localStorage.getItem("task"))
+
+    if (new Date(task.expiredAt) > Date.now()) {
+        getNewTaskBtnDisable.value = true
+        loadImage(baseURL.substring(0, baseURL.length - 3) + task.url)
+    }
 });
 
 // 在组件卸载时移除键盘事件监听器
@@ -286,20 +367,23 @@ onUnmounted(() => {
 <template>
     <div>
         <div class="flex justify-between items-center px-4 py-2 border-b">
-            <n-button type="info"> 获取新任务 </n-button>
-            <n-button strong secondary type="primary"> 保存 </n-button>
+            <n-button type="info" @click="getNewTask" :disabled="getNewTaskBtnDisable"> 获取新任务 </n-button>
+            <div class="flex gap-4">
+                <n-button strong secondary type="error" @click="handleSubmit('exit')"> 提交退出 </n-button>
+                <n-button strong secondary type="primary" @click="handleSubmit('continue')"> 提交继续 </n-button>
+            </div>
         </div>
         <div class="flex justify-between py-4 px-10">
             <div class="flex flex-col gap-4 mt-8">
                 <n-button strong secondary :type="currentMode === 'selectBox' ? 'primary' : 'tertiary'"
-                    @click="switchMode('selectBox')">
+                    @click="currentMode = 'selectBox'">
                     选择
                     <template #icon>
                         <n-icon :component="NearMeRound" size="24" />
                     </template>
                 </n-button>
                 <n-button strong secondary :type="currentMode === 'rectTool' ? 'primary' : 'tertiary'"
-                    @click="switchMode('rectTool')">
+                    @click="currentMode = 'rectTool'">
                     矩形工具
                     <template #icon>
                         <n-icon :component="SquareRound" size="24" />

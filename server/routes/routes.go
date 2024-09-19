@@ -17,6 +17,7 @@ func InitRouter() *gin.Engine {
 	{
 		root.POST("/get-task", controllers.Task.GetTask)
 		root.POST("/submit", controllers.Task.Submit)
+		root.POST("/insert", controllers.Task.Insert)
 	}
 
 	return r

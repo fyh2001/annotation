@@ -11,6 +11,6 @@ CREATE TABLE IF NOT EXISTS `task` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    INDEX `idx_task_status` (`status`),
+    INDEX `idx_task_status` (`status`)
 );
 
