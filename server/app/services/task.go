@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	defaultExpireTime = 10 * time.Second
+	defaultExpireTime = 10 * time.Minute
 )
 
 type TaskServiceImpl struct{}

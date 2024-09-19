@@ -6,6 +6,7 @@ import { baseURL } from "../../api";
 
 
 const getNewTaskBtnDisable = ref(false)
+const currentTaskId = ref(null)
 
 const getNewTask = async () => {
     const { data } = await getTask();
@@ -17,6 +18,8 @@ const getNewTask = async () => {
     localStorage.setItem("task", JSON.stringify(task))
     loadImage(baseURL.substring(0, baseURL.length - 3) + task.url)
     getNewTaskBtnDisable.value = true
+
+    currentTaskId.value = task.id
 }
 
 const handleSubmit = async (mode) => {
@@ -30,14 +33,24 @@ const handleSubmit = async (mode) => {
     }
 
     const submitData = boxes.value.map((item) => {
+        // 获取标注框相对于画布的坐标
+        const rectX = item.x - imageConfig.value.x;
+        const rectY = item.y - imageConfig.value.y;
+
+        // 将画布坐标转换为相对于图像的坐标
+        const normalizedX = rectX / imageConfig.value.width;
+        const normalizedY = rectY / imageConfig.value.height;
+        const normalizedWidth = item.width / imageConfig.value.width;
+        const normalizedHeight = item.height / imageConfig.value.height;
+
         return {
             classification: item.classification,
-            x: (item.x + item.width / 2) / imageWidth.value,
-            y: (item.y + item.height / 2) / imageHeight.value,
-            width: item.width / imageWidth.value,
-            height: item.height / imageHeight.value,
-        }
-    })
+            x: normalizedX + normalizedWidth / 2, // 中心点 x 归一化
+            y: normalizedY + normalizedHeight / 2, // 中心点 y 归一化
+            width: normalizedWidth, // 宽度归一化
+            height: normalizedHeight, // 高度归一化
+        };
+    });
 
     task.result = JSON.stringify(submitData)
 
@@ -85,6 +98,9 @@ const classifications = ref({
 });
 
 const reset = () => {
+
+    currentTaskId.value = null
+
     getNewTaskBtnDisable.value = false
     transformerRef.value = null;
 

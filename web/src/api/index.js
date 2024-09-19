@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// const baseURL = "http://defo1215.cn:3030/api";
-const baseURL = "http://localhost:3030/api";
+const baseURL = "http://defo1215.cn:3030/api";
+// const baseURL = "http://localhost:3030/api";
 
 
 const request = axios.create({
