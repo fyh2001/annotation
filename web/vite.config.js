@@ -10,7 +10,8 @@ import { NaiveUiResolver } from "unplugin-vue-components/resolvers";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: "/annotation",
+  // base: "/annotation",
+  base: "./",
   plugins: [
     vue(),
     vueJsx(),

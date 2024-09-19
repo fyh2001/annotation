@@ -32,7 +32,8 @@ func main() {
 
 	r := routes.InitRouter()
 	r.StaticFS("/images", http.Dir("./static/image"))
-	r.StaticFS("/file", http.Dir("./static/file"))
+	r.StaticFS("/files", http.Dir("./static/file"))
+	r.StaticFS("/app", http.Dir("./static/web"))
 
 	_ = r.Run(":" + config.Global.Application.Port)
 }
